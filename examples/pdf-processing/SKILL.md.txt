@@ -1,0 +1,76 @@
+---
+name: pdf-processing
+description: >
+  Extracts text and tables from PDF files, fills PDF forms, and merges
+  multiple PDFs. Use when working with PDF documents, or when the user
+  mentions PDFs, forms, or document extraction.
+license: MIT
+metadata:
+  version: "1.0.0"
+  category: document
+allowed-tools: Read Write Bash(python scripts/extract.py *)
+---
+
+# PDF Processing
+
+从 PDF 中提取文本和表格，填充表单，或合并多个 PDF。
+
+## 前置条件
+
+- 已提供 PDF 文件路径，或可访问的文件 URL。
+- 若为表单填充，已提供字段名与值的映射。
+
+## 执行步骤
+
+### 步骤 1：识别操作类型
+
+- **输入**：用户请求 + 文件路径
+- **处理**：判断属于提取、填充还是合并
+- **输出**：操作类型枚举
+
+### 步骤 2：执行
+
+- **输入**：操作类型 + 文件
+- **处理**：
+  - 提取 → `python scripts/extract.py <file>`
+  - 填充 → 校验字段映射后执行
+  - 合并 → 按给定顺序合并
+- **输出**：结果文件或结构化数据
+
+### 步骤 3：校验
+
+- **输入**：步骤 2 输出
+- **处理**：检查输出非空、页数/字段数符合预期
+- **输出**：最终产物
+
+## 输出契约
+
+1. **状态**：`success` / `partial` / `failure`
+2. **数据**：
+   ```json
+   {
+     "operation": "extract | fill | merge",
+     "output_path": "string",
+     "pages_processed": 0
+   }
+   ```
+3. **可观测信息**：耗时、处理页数、失败原因
+
+## 异常处理
+
+| 情况 | 动作 |
+| :--- | :--- |
+| 文件不存在或不可读 | 返回缺失项，不执行 |
+| PDF 加密 | 标记 `failure`，提示需要密码 |
+| 表单字段缺失 | 标记 `partial`，返回缺失字段清单 |
+| 提取结果为空 | 标记 `failure`，附文件信息 |
+
+## 不适用场景
+
+- 当输入为扫描件且未启用 OCR 时，不应调用本 Skill 提取文本，应改用 OCR 流程。
+- 当需要编辑 PDF 正文内容（非表单）时，应改用专用编辑工具。
+
+## 反模式
+
+- **直接对加密 PDF 重试**：会反复失败 → 应先检测加密并返回明确提示。
+- **合并时静默跳过损坏文件**：会导致输出缺页 → 应标记 `partial` 并列出跳过文件。
